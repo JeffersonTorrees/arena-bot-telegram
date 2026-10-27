@@ -7,10 +7,15 @@ primeiro que tiver chave configurada e, por último, o Ollama local.
 from __future__ import annotations
 
 import json
+import logging
 import os
+import re
+import time
 import urllib.error
 import urllib.request
 from typing import Callable
+
+log = logging.getLogger(__name__)
 
 Gerador = Callable[[str, list[dict]], str]
 
@@ -53,24 +58,37 @@ def gemini() -> Gerador:
     from google.genai import errors, types
 
     cliente = genai.Client()  # lê GEMINI_API_KEY
-    modelo = os.environ.get("GEMINI_MODEL", "gemini-flash-latest")
+    # A cota gratuita é por modelo: se um estiver lotado (503) ou sem cota (429), tenta o próximo.
+    modelos = [
+        os.environ.get("GEMINI_MODEL", "gemini-3.6-flash"),
+        "gemini-3.5-flash",
+        "gemini-flash-lite-latest",
+        "gemini-3.1-flash-lite",
+    ]
+    modelos = list(dict.fromkeys(modelos))
 
     def gerar(sistema: str, mensagens: list[dict]) -> str:
         conteudo = [
             types.Content(role="model" if m["role"] == "assistant" else "user", parts=[types.Part(text=m["content"])])
             for m in mensagens
         ]
-        try:
-            resposta = cliente.models.generate_content(
-                model=modelo,
-                contents=conteudo,
-                config=types.GenerateContentConfig(system_instruction=sistema, max_output_tokens=2048),
-            )
-        except errors.APIError as e:
-            raise ErroProvedor(str(e)) from e
-        return resposta.text or ""
+        config = types.GenerateContentConfig(system_instruction=sistema, max_output_tokens=2048)
+        ultimo_erro = None
+        for rodada in range(3):
+            for modelo in modelos:
+                try:
+                    resposta = cliente.models.generate_content(model=modelo, contents=conteudo, config=config)
+                    return resposta.text or ""
+                except errors.APIError as e:
+                    if e.code not in (404, 429, 500, 503):
+                        raise ErroProvedor(str(e)) from e
+                    log.warning("Gemini %s indisponível (%s), tentando outro.", modelo, e.code)
+                    ultimo_erro = e
+            espera = re.search(r"retry in (\d+)", str(ultimo_erro))
+            time.sleep(min(int(espera.group(1)) + 1 if espera else 10 * (rodada + 1), 60))
+        raise ErroProvedor(str(ultimo_erro))
 
-    gerar.nome = f"gemini ({modelo})"
+    gerar.nome = f"gemini ({' > '.join(modelos)})"
     return gerar
 
 
