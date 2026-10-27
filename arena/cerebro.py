@@ -3,16 +3,13 @@
 from __future__ import annotations
 
 import logging
-import os
 import re
 
-import anthropic
-
+from .provedores import ErroProvedor, Gerador, escolher
 from .rag import Indice, Trecho, carregar_trechos
 
 log = logging.getLogger(__name__)
 
-MODELO = os.environ.get("CLAUDE_MODEL", "claude-opus-5-5")
 HISTORICO_MAX = 6  # mensagens (3 trocas) mantidas por conversa, só em memória
 
 PROMPT_SISTEMA = """Você é o assistente virtual de atendimento da Arena Vila Nova, um complexo que aluga quadras esportivas. Você conversa com clientes pelo Telegram.
@@ -72,9 +69,9 @@ def _formatar_documentos(trechos: list[Trecho]) -> str:
 
 
 class Assistente:
-    def __init__(self, cliente: anthropic.Anthropic | None = None):
+    def __init__(self, gerar: Gerador | None = None):
         self.indice = Indice(carregar_trechos())
-        self.cliente = cliente or anthropic.Anthropic()
+        self.gerar = gerar or escolher()
         self.contato = self._contato_recepcao()
         self.sistema = PROMPT_SISTEMA.format(contato=self.contato)
         self.historicos: dict[str, list[dict]] = {}
@@ -115,25 +112,12 @@ class Assistente:
             }
         ]
         try:
-            resposta = self.cliente.beta.messages.create(
-                model=MODELO,
-                max_tokens=2048,
-                system=self.sistema,
-                messages=mensagens,
-                output_config={"effort": "low"},
-                betas=["server-side-fallback-2026-07-01"],
-                fallbacks="default",
-            )
-        except anthropic.APIError:
-            log.exception("Falha ao chamar a API")
+            texto = self.gerar(self.sistema, mensagens).strip()
+        except ErroProvedor as e:
+            log.error("Falha ao chamar o modelo: %s", e)
             return ERRO_GENERICO.format(contato=self.contato)
-
-        if resposta.stop_reason == "refusal":
-            texto = "Posso ajudar apenas com assuntos da Arena Vila Nova. Quer saber sobre horários, preços ou reservas?"
-        else:
-            texto = "".join(b.text for b in resposta.content if b.type == "text").strip()
-            if not texto:
-                return ERRO_GENERICO.format(contato=self.contato)
+        if not texto:
+            return ERRO_GENERICO.format(contato=self.contato)
 
         # O histórico guarda só a pergunta e a resposta, sem os documentos, para não acumular contexto.
         historico += [{"role": "user", "content": pergunta}, {"role": "assistant", "content": texto}]

@@ -19,6 +19,7 @@ logging.getLogger("httpx").setLevel(logging.WARNING)  # evita logar a URL com o 
 log = logging.getLogger("telegram_bot")
 
 assistente = Assistente()
+log.info("Usando %s", assistente.gerar.nome)
 
 BOAS_VINDAS = (
     "Olá! Sou o assistente virtual da Arena Vila Nova. Posso tirar dúvidas sobre horários, quadras e preços, "
@@ -45,8 +46,6 @@ def main() -> None:
     token = os.environ.get("TELEGRAM_BOT_TOKEN")
     if not token:
         sys.exit("Defina a variável de ambiente TELEGRAM_BOT_TOKEN com o token do @BotFather.")
-    if not os.environ.get("ANTHROPIC_API_KEY"):
-        sys.exit("Defina a variável de ambiente ANTHROPIC_API_KEY.")
     app = Application.builder().token(token).build()
     app.add_handler(CommandHandler(["start", "ajuda"], iniciar))
     app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, mensagem))

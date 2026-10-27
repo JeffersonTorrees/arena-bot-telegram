@@ -6,7 +6,8 @@ Bot de atendimento que responde **somente** com o que está na base de conhecime
 
 ```
 arena/rag.py       busca: carrega a base, descarta obsoletos, corta por seção, filtra injeção, BM25
-arena/cerebro.py   prompt + chamada ao Claude + filtros (dados sensíveis, histórico curto)
+arena/cerebro.py   prompt + filtros (dados sensíveis, histórico curto)
+arena/provedores.py  chamada ao modelo: Claude, Gemini ou Ollama (local)
 terminal.py        "primeiro o cérebro": conversa no terminal e roda as 16 perguntas públicas
 telegram_bot.py    "depois o canal": liga o cérebro ao bot do @BotFather
 ```
@@ -17,16 +18,25 @@ telegram_bot.py    "depois o canal": liga o cérebro ao bot do @BotFather
 python -m venv .venv
 .venv\Scripts\activate
 pip install -r requirements.txt
+```
 
-$env:ANTHROPIC_API_KEY = "sua-chave"      # nunca no código
+Escolha um cérebro (só precisa de um):
+
+| Opção | Custo | Como configurar |
+|---|---|---|
+| **Gemini** | grátis (conta Google, sem cartão) | Gere a chave em aistudio.google.com/apikey e rode `$env:GEMINI_API_KEY = "..."` |
+| **Ollama** (local) | grátis, sem chave | Instale em ollama.com, rode `ollama pull qwen2.5:7b` e deixe o Ollama aberto |
+| **Claude** | pago | `$env:ANTHROPIC_API_KEY = "..."` |
+
+Sem `PROVEDOR`, o bot usa o primeiro que tiver chave e, se não houver nenhuma, o Ollama. Para forçar uma opção, use `$env:PROVEDOR = "gemini"` (ou `claude`, ou `ollama`).
+
+```powershell
 python terminal.py                         # conversa no terminal
 python terminal.py --teste                 # 16 perguntas -> resultados-testes.md
 
 $env:TELEGRAM_BOT_TOKEN = "token-do-botfather"
 python telegram_bot.py
 ```
-
-Modelo padrão: `claude-opus-5-5` (troque com a variável `CLAUDE_MODEL`).
 
 ## Como cada armadilha é tratada
 

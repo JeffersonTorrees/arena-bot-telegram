@@ -6,11 +6,10 @@
 
 import json
 import logging
-import os
 import sys
 from pathlib import Path
 
-from arena.cerebro import MODELO, Assistente
+from arena.cerebro import Assistente
 
 RAIZ = Path(__file__).resolve().parent
 
@@ -33,7 +32,7 @@ def conversar(assistente: Assistente) -> None:
 def testar(assistente: Assistente) -> None:
     perguntas = json.loads((RAIZ / "perguntas-publicas.json").read_text(encoding="utf-8"))
     linhas = [
-        f"# Resultados dos testes (modelo {MODELO})\n",
+        f"# Resultados dos testes (modelo {assistente.gerar.nome})\n",
         "| # | Pergunta | Esperado | Resposta do bot | OK? | Etapa do erro |",
         "|---|---|---|---|---|---|",
     ]
@@ -51,7 +50,6 @@ def testar(assistente: Assistente) -> None:
 if __name__ == "__main__":
     sys.stdout.reconfigure(encoding="utf-8")
     logging.basicConfig(level=logging.WARNING, format="%(levelname)s %(name)s: %(message)s")
-    if not os.environ.get("ANTHROPIC_API_KEY"):
-        sys.exit("Defina a variável de ambiente ANTHROPIC_API_KEY.")
     assistente = Assistente()
+    print(f"Usando {assistente.gerar.nome}\n")
     testar(assistente) if "--teste" in sys.argv else conversar(assistente)
